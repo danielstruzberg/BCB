@@ -19,9 +19,15 @@ purrr::walk2(.x=caminhos,.y=periodos_ano$arquivo_destino,.f=~download.file(url=.
 
 Arquivos <- list.files(here('Dados'),full.names = TRUE)
 
-Dados_Cliente_Banco <- read_csv2(Arquivos[2]) %>% 
-    
+Dados_Cliente_Banco <- map_df(
+    .x = Arquivos, 
+    .f = ~read_csv2(
+        file = .x, 
+        locale = locale(encoding = "latin1"),
+        name_repair = janitor::make_clean_names,
+        col_types = cols(cnpj_if = col_character())
+
+    )
+)
     
 
-
-reader
