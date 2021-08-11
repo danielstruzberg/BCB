@@ -4,14 +4,8 @@ library(tidyverse)
 library(dplyr)
 library(here)
 library(gt)
-
-
-ano<-tibble(ano=c(2017:2021))
-periodo<-tibble(periodo=c(1:4))
-periodos_ano <- crossing(ano,periodo) %>% 
-    mutate(arquivo_destino=str_glue("Dados/{ano}-{periodo}") %>% 
-               here()) 
-
+library(tsibble)
+library(feather)
 
 caminhos<-str_glue('https://www3.bcb.gov.br/rdrweb/rest/ext/ranking/arquivo?ano={periodos_ano$ano}&periodicidade=TRIMESTRAL&periodo={periodos_ano$periodo}&tipo=Bancos%20e%20financeiras')
 
@@ -41,7 +35,7 @@ Dados_Cliente_Banco <- map_df(
 Analise_Trimestral <- Dados_Cliente_Banco %>%  
     mutate(instituicao_financeira=str_remove(instituicao_financeira," \\(conglomerado\\)"),
            trimestre=str_extract(trimestre,"[0-9]"),
-           Trimestre_Ano=str_glue("{trimestre}-{ano}"),
+           Trimestre_Ano=str_glue("{ano}Q{trimestre}") %>% yearquarter(),
            Ano_Anterior=ano-1,
            Delta_Ano=str_glue("{ano}-{Ano_Anterior}",),
            Banco=if_else(instituicao_financeira=='INTERMEDIUM','INTER',instituicao_financeira)) %>% 
@@ -55,7 +49,13 @@ Analise_Trimestral <- Dados_Cliente_Banco %>%
            ToT_Qtd_Clientes_FGC=quantidade_clientes_fgc/lag(quantidade_clientes_fgc)-1,
            ToT_Qtd_Reclamacoes=quantidade_reclamacoes/lag(quantidade_reclamacoes)-1,
            ) %>% 
-    ungroup() 
+    ungroup() %>% 
+    as_tsibble(
+        key = Banco,
+        index = Trimestre_Ano
+    )
+
+
 
 
 # Para Ajustar a Analisa Anual deve fazer um filtro que tenha o ultimo trimestre de cada ano
@@ -64,7 +64,7 @@ Analise_Trimestral <- Dados_Cliente_Banco %>%
 Analise_Anual <- Dados_Cliente_Banco %>%  
     mutate(instituicao_financeira=str_remove(instituicao_financeira," \\(conglomerado\\)"),
            trimestre=str_extract(trimestre,"[0-9]"),
-           Trimestre_Ano=str_glue("{trimestre}-{ano}"),
+           Trimestre_Ano=str_glue("{ano}Q{trimestre}") %>% yearquarter(),
            Ano_Anterior=ano-1,
            Delta_Ano=str_glue("{ano}-{Ano_Anterior}",),
            Banco=if_else(instituicao_financeira=='INTERMEDIUM','INTER',instituicao_financeira)) %>% 
@@ -72,18 +72,24 @@ Analise_Anual <- Dados_Cliente_Banco %>%
         quantidade_clientes_fgc=quantidade_de_clientes_u_0096_fgc,
         quantidade_reclamacoes=quantidade_total_de_reclamacoes,
         quantidade_clientes=quantidade_total_de_clientes_u_0096_ccs_e_scr) %>%
-    select(!c(categoria,tipo,trimestre,Ano_Anterior,instituicao_financeira)) %>% 
-    filter(str_detect(Trimestre_Ano,"4")) %>% 
+    select(!c(categoria,tipo,Ano_Anterior,instituicao_financeira)) %>% 
+    filter(trimestre == "4") %>% 
+    select(-trimestre) %>% 
     group_by(Banco) %>% 
     mutate(YoY_Qtd_Clientes=quantidade_clientes/lag(quantidade_clientes)-1,
            YoY_Qtd_Clientes_FGC=quantidade_clientes_fgc/lag(quantidade_clientes_fgc)-1,
            YoY_Qtd_Reclamacoes=quantidade_reclamacoes/lag(quantidade_reclamacoes)-1,
     ) %>% 
-    ungroup()
+    ungroup() %>% 
+    as_tsibble(
+        key = Banco,
+        index = ano
+    )
 
 
 
-
+write_rds(Analise_Anual, "dados_tratados/analise_anual.rds")
+write_rds(Analise_Trimestral, "dados_tratados/analise_trimestral.rds")
 
 
 
