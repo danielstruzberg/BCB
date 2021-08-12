@@ -5,7 +5,6 @@ library(dplyr)
 library(here)
 library(gt)
 library(tsibble)
-library(feather)
 
 caminhos<-str_glue('https://www3.bcb.gov.br/rdrweb/rest/ext/ranking/arquivo?ano={periodos_ano$ano}&periodicidade=TRIMESTRAL&periodo={periodos_ano$periodo}&tipo=Bancos%20e%20financeiras')
 
@@ -45,9 +44,11 @@ Analise_Trimestral <- Dados_Cliente_Banco %>%
            quantidade_clientes=quantidade_total_de_clientes_u_0096_ccs_e_scr) %>%
     select(!c(categoria,tipo,trimestre,Ano_Anterior,instituicao_financeira)) %>% 
     group_by(Banco) %>% 
-    mutate(ToT_Qtd_Clientes=quantidade_clientes/lag(quantidade_clientes)-1,
-           ToT_Qtd_Clientes_FGC=quantidade_clientes_fgc/lag(quantidade_clientes_fgc)-1,
-           ToT_Qtd_Reclamacoes=quantidade_reclamacoes/lag(quantidade_reclamacoes)-1,
+    mutate(delta_qtd_clientes=quantidade_clientes/lag(quantidade_clientes)-1,
+           delta_qtd_clientes_fgc=quantidade_clientes_fgc/lag(quantidade_clientes_fgc)-1,
+           delta_qtd_reclamacoes=quantidade_reclamacoes/lag(quantidade_reclamacoes)-1,
+           qtd_clientes_media_periodo = (quantidade_clientes + lag(quantidade_clientes))/2,
+           reclamacoes_por_cliente = quantidade_reclamacoes / qtd_clientes_media_periodo
            ) %>% 
     ungroup() %>% 
     as_tsibble(
@@ -76,9 +77,11 @@ Analise_Anual <- Dados_Cliente_Banco %>%
     filter(trimestre == "4") %>% 
     select(-trimestre) %>% 
     group_by(Banco) %>% 
-    mutate(YoY_Qtd_Clientes=quantidade_clientes/lag(quantidade_clientes)-1,
-           YoY_Qtd_Clientes_FGC=quantidade_clientes_fgc/lag(quantidade_clientes_fgc)-1,
-           YoY_Qtd_Reclamacoes=quantidade_reclamacoes/lag(quantidade_reclamacoes)-1,
+    mutate(delta_qtd_clientes = quantidade_clientes/lag(quantidade_clientes)-1,
+           delta_qtd_clientes_fgc = quantidade_clientes_fgc/lag(quantidade_clientes_fgc)-1,
+           delta_qtd_reclamacoes = quantidade_reclamacoes/lag(quantidade_reclamacoes)-1,
+           qtd_clientes_media_periodo = (quantidade_clientes + lag(quantidade_clientes))/2,
+           reclamacoes_por_cliente = quantidade_reclamacoes / qtd_clientes_media_periodo
     ) %>% 
     ungroup() %>% 
     as_tsibble(
