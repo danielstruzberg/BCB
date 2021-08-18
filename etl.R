@@ -23,7 +23,17 @@ Dados_Cliente_Banco <- map_df(
 
     )
 )   %>% 
-    select(c(ano,trimestre,categoria,tipo,instituicao_financeira,quantidade_total_de_reclamacoes,quantidade_de_clientes_u_0096_fgc,quantidade_total_de_clientes_u_0096_ccs_e_scr)) %>% 
+    select(c(
+        ano,
+        trimestre,
+        categoria,
+        tipo,
+        instituicao_financeira,
+        quantidade_total_de_reclamacoes,
+        quantidade_de_clientes_u_0096_fgc,
+        quantidade_total_de_clientes_u_0096_ccs_e_scr,
+        quantidade_de_clientes_u_0096_ccs
+    )) %>% 
     mutate(
         across(everything(), ~replace_na(.x, 0))
     ) %>% 
@@ -37,12 +47,16 @@ Analise_Trimestral <- Dados_Cliente_Banco %>%
            Trimestre_Ano=str_glue("{ano}Q{trimestre}") %>% yearquarter(),
            Ano_Anterior=ano-1,
            Delta_Ano=str_glue("{ano}-{Ano_Anterior}",),
-           Banco=if_else(instituicao_financeira=='INTERMEDIUM','INTER',instituicao_financeira)) %>% 
+           Banco=if_else(instituicao_financeira=='INTERMEDIUM','INTER',instituicao_financeira)
+    ) %>%
+    mutate(
+        Banco = if_else(Banco == "BTG PACTUAL/BANCO PAN","PAN", Banco)
+    ) %>% 
     rename(        
            quantidade_clientes_fgc=quantidade_de_clientes_u_0096_fgc,
            quantidade_reclamacoes=quantidade_total_de_reclamacoes,
-           quantidade_clientes=quantidade_total_de_clientes_u_0096_ccs_e_scr) %>%
-    select(!c(categoria,tipo,trimestre,Ano_Anterior,instituicao_financeira)) %>% 
+           quantidade_clientes=quantidade_de_clientes_u_0096_ccs) %>%
+    select(!c(tipo,trimestre,Ano_Anterior,instituicao_financeira)) %>% 
     group_by(Banco) %>% 
     mutate(delta_qtd_clientes=quantidade_clientes/lag(quantidade_clientes)-1,
            delta_qtd_clientes_fgc=quantidade_clientes_fgc/lag(quantidade_clientes_fgc)-1,
@@ -51,6 +65,9 @@ Analise_Trimestral <- Dados_Cliente_Banco %>%
            reclamacoes_por_cliente = quantidade_reclamacoes / qtd_clientes_media_periodo
            ) %>% 
     ungroup() %>% 
+    filter(
+        quantidade_clientes != 0
+    ) %>% 
     as_tsibble(
         key = Banco,
         index = Trimestre_Ano
@@ -68,12 +85,16 @@ Analise_Anual <- Dados_Cliente_Banco %>%
            Trimestre_Ano=str_glue("{ano}Q{trimestre}") %>% yearquarter(),
            Ano_Anterior=ano-1,
            Delta_Ano=str_glue("{ano}-{Ano_Anterior}",),
-           Banco=if_else(instituicao_financeira=='INTERMEDIUM','INTER',instituicao_financeira)) %>% 
+           Banco=if_else(instituicao_financeira=='INTERMEDIUM','INTER',instituicao_financeira)
+    ) %>% 
+    mutate(
+        Banco = if_else(Banco == "BTG PACTUAL/BANCO PAN","PAN", Banco)
+    ) %>% 
     rename(        
         quantidade_clientes_fgc=quantidade_de_clientes_u_0096_fgc,
         quantidade_reclamacoes=quantidade_total_de_reclamacoes,
-        quantidade_clientes=quantidade_total_de_clientes_u_0096_ccs_e_scr) %>%
-    select(!c(categoria,tipo,Ano_Anterior,instituicao_financeira)) %>% 
+        quantidade_clientes=quantidade_de_clientes_u_0096_ccs) %>%
+    select(!c(tipo,Ano_Anterior,instituicao_financeira)) %>% 
     filter(trimestre == "4") %>% 
     select(-trimestre) %>% 
     group_by(Banco) %>% 
@@ -84,6 +105,9 @@ Analise_Anual <- Dados_Cliente_Banco %>%
            reclamacoes_por_cliente = quantidade_reclamacoes / qtd_clientes_media_periodo
     ) %>% 
     ungroup() %>% 
+    filter(
+        quantidade_clientes != 0
+    ) %>% 
     as_tsibble(
         key = Banco,
         index = ano

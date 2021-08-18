@@ -5,6 +5,24 @@ library(tidyverse)
 library(scales)
 library(patchwork)
 library(writexl)
+library(ggiraph)
+
+
+encaixa_grafico_ggiraph <- function(grafico){
+    
+    girafe(
+        code = {print(grafico)},
+        width_svg = 10, 
+        height_svg = 5,
+        options = list(
+            opts_selection(type = "multiple", girafe_css(css = "stroke:orange", line = "stroke:orange")),
+            opts_tooltip(use_fill = TRUE),
+            opts_hover(css = "")
+        )
+    )
+    
+}  
+
 
 Analise_Trimestral <- read_rds("dados_tratados/analise_trimestral.rds")
 Analise_Anual <- read_rds("dados_tratados/analise_anual.rds") %>% 
@@ -44,7 +62,7 @@ ui <- fluidPage(
                 downloadLink(label = "baixar dados", outputId = "download_dado")
             ) %>% 
             h3("Gráfico:"),
-            plotOutput("grafico"),
+            girafeOutput("grafico"),
             h3("Número de clientes:"),
             reactableOutput("tabela_reactable")
         )
@@ -65,13 +83,71 @@ server <- function(input, output, session) {
         
 
         saida %>% 
-            filter(Banco %in% input$Bancos) %>% 
-            view()
+            filter(Banco %in% input$Bancos) 
             
     })
     
     
-    output$grafico <- renderPlot({
+    dados_todos <- reactive({
+
+        if(input$tipoperiodo == "Anual"){
+            saida <- Analise_Anual
+        } else {
+            saida <- Analise_Trimestral
+        }
+        
+        saida
+        
+    })
+
+    
+
+    campo_data <- reactive({
+        
+        if(input$tipoperiodo == "Anual"){
+            saida <-  "ano"
+        } else{
+            saida <-  "Trimestre_Ano"
+        }
+        
+        saida
+        
+    })    
+    
+    
+    
+    mediana_indice_reclamacoes <- reactive({
+     
+
+    
+
+        n_categorias <- dados_usados() %>% 
+            summarise(
+                n = n_distinct(categoria)
+            ) %>% 
+            pull(n)
+            
+        if(n_categorias == 1){
+            saida <- dados_todos() %>% 
+                group_by(
+                    across(
+                        .cols = any_of(campo_data())
+                    )
+                ) %>% 
+                summarise(
+                    reclamacoes_por_cliente = median(reclamacoes_por_cliente, na.rm = TRUE)
+                )
+        } else{
+            saida <- NULL
+        }
+        
+        
+           
+    })
+        
+    
+    
+    output$grafico <- renderGirafe({
         
         dados = dados_usados()
         
@@ -98,11 +174,49 @@ server <- function(input, output, session) {
             ) +
             camada_escala_x
         
+
+
         
         grafico_reclamacoes <-  dados_usados() %>% 
             ggplot() +
             geom_line(aes(x = .data[[campo_x]], y = reclamacoes_por_cliente * 1000, color = Banco )) +
-            geom_point(aes(x = .data[[campo_x]], y = reclamacoes_por_cliente * 1000, color = Banco )) +
+            geom_point_interactive(
+                aes(
+                    x = .data[[campo_x]], 
+                    y = reclamacoes_por_cliente * 1000, 
+                    color = Banco,
+                    tooltip = paste0(
+                        "Reclamações:", 
+                        quantidade_reclamacoes, 
+                        "\nClientes:", 
+                        number(quantidade_clientes, big.mark = "." ),
+                        "\nReclamações / 1000 Clientes:", 
+                        number(reclamacoes_por_cliente * 1000, decimal.mark = ",", accuracy = 0.001 )
+                    )
+                )
+            ) +
+            geom_line(
+                data = mediana_indice_reclamacoes(),
+                aes(
+                    y = reclamacoes_por_cliente * 1000,
+                    x = .data[[campo_x]]
+                ),
+                color = "black",
+                linetype = "dashed",
+                alpha = 0.5
+                
+            ) +
+            geom_point_interactive(
+                data = mediana_indice_reclamacoes(),
+                aes(
+                    y = reclamacoes_por_cliente * 1000,
+                    x = .data[[campo_x]],
+                    tooltip = paste0("Reclamações / 1000 clientes:", number(reclamacoes_por_cliente * 1000, accuracy = .001, decimal.mark = ",")),
+                    
+                ),
+                color = "black",
+                alpha = 0.5
+            ) +
             scale_y_continuous(
                 labels = number_format(accuracy = 0.01, big.mark = ".")
             ) +
@@ -138,7 +252,7 @@ server <- function(input, output, session) {
 
 
                 
-        grafico_qtd_clientes + grafico_crescimento_clientes + grafico_reclamacoes
+        encaixa_grafico_ggiraph(grafico_qtd_clientes + grafico_crescimento_clientes + grafico_reclamacoes)
         
         
     }) 
