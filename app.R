@@ -191,7 +191,7 @@ server <- function(input, output, session) {
         
         grafico_reclamacoes <-  dados_usados() %>% 
             ggplot() +
-            ggtitle('Quantidade de Reclamacoes')+
+            ggtitle('Quantidade de Reclamacoes ')+
             geom_line(aes(x = .data[[campo_x]], y = reclamacoes_por_cliente * 1000, color = Banco )) +
             geom_point_interactive(
                 aes(
